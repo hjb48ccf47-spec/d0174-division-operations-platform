@@ -224,7 +224,8 @@
   function mountD0174Nav() {
     const nav = document.querySelector(".sidebar nav"); if (!nav) return;
     let button = nav.querySelector("[data-d0174-business-nav]");
-    if (!button) { button = document.createElement("button"); button.setAttribute("data-d0174-business-nav", "1"); button.innerHTML = `<i>◇</i>業務交流會`; nav.appendChild(button); }
+    if (!button) { button = document.createElement("button"); button.setAttribute("data-d0174-business-nav", "1"); button.innerHTML = `<i>▣</i><span>業務交流會</span>`; nav.appendChild(button); }
+    button.dataset.active = document.body?.dataset.d0174StandaloneMeeting === "1" ? "1" : "0";
     if (!button.dataset.d0174Bound) { button.dataset.d0174Bound = "1"; button.addEventListener("click", () => { document.body.dataset.d0174StandaloneMeeting = "1"; mountD0174Meeting(); }); }
     nav.querySelectorAll("button:not([data-d0174-business-nav])").forEach(item => { if (item.dataset.d0174RouteBound) return; item.dataset.d0174RouteBound = "1"; item.addEventListener("click", () => { document.body.dataset.d0174StandaloneMeeting = "0"; const page = document.querySelector(".page"); if (page) Array.from(page.children).forEach(child => { child.style.display = ""; }); document.getElementById("d0174-business-meeting")?.remove(); }); });
   }
@@ -304,6 +305,9 @@
   const d0174QrStyle = document.createElement("style");
   d0174QrStyle.textContent = `#d0174-business-meeting .d0174QrGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}#d0174-business-meeting .d0174QrGrid article{border:1px solid #e3e7ed;border-radius:16px;background:#fff;padding:16px;text-align:center}#d0174-business-meeting .d0174QrHeading{display:flex;justify-content:space-between;align-items:baseline;gap:10px;text-align:left}.d0174QrHeading b{font-size:17px}.d0174QrHeading span{font-size:12px;color:#738095}.d0174QrGrid img{display:block;width:220px;height:220px;margin:14px auto 10px;border:1px solid #edf0f4;border-radius:10px}.d0174QrGrid>a{display:inline-block;color:#a72430;font-weight:700;text-decoration:none}.d0174QrRoster{margin-top:16px;border-top:1px solid #edf0f4;padding-top:12px;text-align:left}.d0174QrRoster>strong{font-size:13px;color:#4d586b}.d0174QrPerson{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 0;border-bottom:1px solid #f0f2f5}.d0174QrPerson span,.d0174QrPerson small{color:#738095;font-size:12px}.d0174QrPerson small{grid-column:1/-1}.d0174QrEmpty{padding:10px 0;color:#99a1ad;font-size:13px}@media(max-width:900px){#d0174-business-meeting .d0174QrGrid{grid-template-columns:1fr}#d0174-business-meeting .d0174QrGrid img{width:190px;height:190px}}`;
   document.head.appendChild(d0174QrStyle);
+  const d0174NavStyle = document.createElement("style");
+  d0174NavStyle.textContent = `.sidebar nav button[data-d0174-business-nav]{box-sizing:border-box!important;width:calc(100% - 18px)!important;min-height:48px!important;margin:7px 9px!important;padding:8px 14px!important;display:flex!important;align-items:center!important;gap:12px!important;text-align:left!important;color:#536176!important;background:transparent!important;border:0!important;border-left:4px solid transparent!important;border-radius:10px!important;box-shadow:none!important;font:inherit!important;font-size:14px!important;font-weight:600!important;line-height:1.2!important;cursor:pointer!important}.sidebar nav button[data-d0174-business-nav] i{box-sizing:border-box;width:32px;height:32px;display:grid;place-items:center;flex:0 0 32px;border-radius:9px;background:#fff0f1;color:#d6282f;font-style:normal;font-size:16px;font-weight:800}.sidebar nav button[data-d0174-business-nav]:hover{background:#fff3f4!important;color:#b5222b!important}.sidebar nav button[data-d0174-business-nav][data-active="1"]{background:#fde8ea!important;color:#b5222b!important;border-left-color:#e51d2a!important}`;
+  document.head.appendChild(d0174NavStyle);
   mount();
   mountD0174Nav();
   mountD0174Overview();
