@@ -204,12 +204,57 @@
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" }), link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `D0174-月度業務交流會-${state.month || d0174MeetingMonth()}.csv`; link.click(); URL.revokeObjectURL(link.href);
     d0174MeetingStatus("已導出 D0174 會議設定記錄。");
   }
-  function mountD0174Overview() {
-    if (!document.body || !document.body.innerText.includes("D0174") || !document.body.innerText.includes("今天需要關注什麼")) return;
-    document.querySelectorAll("button").forEach((button) => {
-      if ((button.textContent || "").includes("FOR ADMIN")) { button.style.display = "none"; }
-    });
+  const D0174_MEMBERS_KEY = "d0174-manual-members-v1";
+  const d0174ReadJson = async (url, fallback) => { try { const response = await fetch(url, { credentials: "include", cache: "no-store" }); if (!response.ok) return fallback; return await response.json(); } catch { return fallback; } };
+  const d0174LoadMembers = () => { try { const value = JSON.parse(localStorage.getItem(D0174_MEMBERS_KEY) || "[]"); return Array.isArray(value) ? value : []; } catch { return []; } };
+  const d0174SaveMembers = (members) => localStorage.setItem(D0174_MEMBERS_KEY, JSON.stringify(members));
+  const d0174MonthLabel = (month) => { const [y, m] = String(month || d0174MeetingMonth()).split("-"); return `${y}年${Number(m)}月`; };
+
+  function mountD0174Nav() {
+    const nav = document.querySelector(".sidebar nav"); if (!nav) return;
+    if (nav.querySelector("[data-d0174-business-nav]")) return;
+    const button = document.createElement("button"); button.setAttribute("data-d0174-business-nav", "1"); button.innerHTML = `<i>◇</i>業務交流會`;
+    button.addEventListener("click", () => { const attendance = Array.from(document.querySelectorAll(".sidebar button")).find(item => (item.textContent || "").includes("團隊出勤")); attendance?.click(); window.setTimeout(() => document.getElementById("d0174-business-meeting")?.scrollIntoView({ behavior: "smooth", block: "start" }), 900); });
+    nav.appendChild(button);
   }
+
+  async function mountD0174Overview() {
+    if (!document.body || !document.body.innerText.includes("D0174") || !document.body.innerText.includes("今天需要關注什麼")) return;
+    const overview = document.querySelector(".managementOverview"); if (!overview) return;
+    if (overview.dataset.d0174Custom === "1") return;
+    overview.dataset.d0174Custom = "1";
+    const month = d0174MeetingMonth();
+    overview.innerHTML = `<section class="d0174FocusOverview"><div class="d0174FocusEyebrow">D0174 · VISUAL OVERVIEW</div><h2>可視化總覽</h2><p>只顯示新人入職進度與團隊出勤情況，方便每日跟進。</p><div class="d0174FocusGrid"><article><small>NEW JOINER PIPELINE</small><h3>新人入職進度</h3><div class="d0174FocusMetric" data-focus="new-count">0</div><p data-focus="new-summary">本月尚未建立新人資料。</p><div data-focus="new-list" class="d0174FocusList"></div><button type="button" data-focus-nav="people">查看新人檔案 →</button></article><article><small>TEAM ATTENDANCE</small><h3>團隊出勤情況</h3><div class="d0174FocusMetric" data-focus="attendance-count">0</div><p data-focus="attendance-summary">本月尚未有簽到記錄。</p><div data-focus="attendance-list" class="d0174FocusList"></div><button type="button" data-focus-nav="attendance">查看團隊出勤 →</button></article></div></section>`;
+    overview.querySelectorAll("[data-focus-nav]").forEach(button => button.addEventListener("click", () => { const target = button.dataset.focusNav === "people" ? "◉ 人員檔案" : "▦ 團隊出勤"; Array.from(document.querySelectorAll(".sidebar button")).find(item => (item.textContent || "").includes(target))?.click(); }));
+    const newcomers = await d0174ReadJson(`/api/newcomers?month=${encodeURIComponent(month)}&_=${Date.now()}`, { records: [] });
+    const records = Array.isArray(newcomers.records) ? newcomers.records : [];
+    const monthRecords = records.filter(item => String(item.processStartDate || item.joinDate || item.startMonth || "").startsWith(month));
+    const manual = d0174LoadMembers();
+    const meetings = await d0174ReadJson(`/api/meeting-response?meeting=${encodeURIComponent(month)}&_=${Date.now()}`, { items: [] });
+    const submissions = Array.isArray(meetings.items) ? meetings.items : [];
+    const checkins = submissions.filter(item => item.type === "checkin");
+    const newCount = overview.querySelector('[data-focus="new-count"]'); if (newCount) newCount.textContent = String(monthRecords.length);
+    const newSummary = overview.querySelector('[data-focus="new-summary"]'); if (newSummary) newSummary.textContent = monthRecords.length ? `${d0174MonthLabel(month)} 共 ${monthRecords.length} 位新人，按目前節點跟進。` : "本月尚未建立新人資料。";
+    const newList = overview.querySelector('[data-focus="new-list"]'); if (newList) newList.innerHTML = monthRecords.slice(0, 8).map(item => `<div><b>${escapeHtml(item.nameZh || item.name || "未命名新人")}</b><span>${escapeHtml(item.currentStep || item.status || "入職辦理中")}</span></div>`).join("") || `<div class="d0174FocusEmpty">等待新人資料</div>`;
+    const attCount = overview.querySelector('[data-focus="attendance-count"]'); if (attCount) attCount.textContent = String(checkins.length);
+    const attSummary = overview.querySelector('[data-focus="attendance-summary"]'); if (attSummary) attSummary.textContent = checkins.length ? `${d0174MonthLabel(month)} 已有 ${checkins.length} 人完成簽到。` : `本月尚未有簽到記錄${manual.length ? `；目前名單 ${manual.length} 人。` : "。"}`;
+    const attList = overview.querySelector('[data-focus="attendance-list"]'); if (attList) attList.innerHTML = checkins.slice(0, 8).map(item => `<div><b>${escapeHtml(item.name || "未命名")}</b><span>已簽到 · ${escapeHtml(item.agentCode || "")}</span></div>`).join("") || `<div class="d0174FocusEmpty">等待簽到資料</div>`;
+  }
+
+  function mountD0174Directory() {
+    if (!document.body || !document.body.innerText.includes("分區團隊通訊錄") || document.getElementById("d0174-manual-directory")) return;
+    const page = document.querySelector(".page"); if (!page) return;
+    const root = document.createElement("section"); root.id = "d0174-manual-directory";
+    root.innerHTML = `<div class="d0174DirectoryHeader"><div><small>D0174 MEMBER ENTRY</small><h2>D0174 人員填寫入口</h2><p>新增或修改 D0174 團隊名單；保存後可供團隊檔案與出勤模組使用。</p></div><button type="button" data-member-action="new">＋ 新增人員</button></div><form class="d0174MemberForm" hidden><input type="hidden" data-member-field="id"><label>姓名<input required data-member-field="name" placeholder="例如：陳大文"></label><label>Agent Code<input data-member-field="code" placeholder="D0174-0001"></label><label>職級／角色<input data-member-field="role" placeholder="例如：FC"></label><label>類別<input data-member-field="category" placeholder="例如：FT／LA"></label><label>直接上線<input data-member-field="manager"></label><label>所屬管理組<input data-member-field="group"></label><label>狀態<select data-member-field="status"><option value="active">在職</option><option value="new">入職中</option><option value="inactive">離職</option></select></label><div class="d0174MemberFormActions"><button type="submit">保存人員</button><button type="button" data-member-action="cancel">取消</button></div></form><div class="d0174MemberList"></div>`;
+    page.appendChild(root);
+    const form = root.querySelector(".d0174MemberForm"), list = root.querySelector(".d0174MemberList");
+    const render = () => { const members = d0174LoadMembers(); list.innerHTML = members.length ? `<table><thead><tr><th>姓名</th><th>Agent Code</th><th>職級</th><th>分組</th><th>狀態</th><th>操作</th></tr></thead><tbody>${members.map(item => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.role)}</td><td>${escapeHtml(item.group)}</td><td>${escapeHtml(item.status === "new" ? "入職中" : item.status === "inactive" ? "離職" : "在職")}</td><td><button type="button" data-member-edit="${escapeHtml(item.id)}">修改</button><button type="button" data-member-delete="${escapeHtml(item.id)}">刪除</button></td></tr>`).join("")}</tbody></table>` : `<div class="d0174DirectoryEmpty">尚未填寫 D0174 人員名單，請新增第一位人員。</div>`; };
+    const setForm = item => { form.hidden = false; Object.entries(item || { id: "", name: "", code: "", role: "", category: "", manager: "", group: "", status: "active" }).forEach(([key, value]) => { const field = form.querySelector(`[data-member-field="${key}"]`); if (field) field.value = value || ""; }); };
+    root.addEventListener("click", event => { const target = event.target.closest("button"); if (!target) return; if (target.dataset.memberAction === "new") setForm(); if (target.dataset.memberAction === "cancel") form.hidden = true; if (target.dataset.memberEdit) { const item = d0174LoadMembers().find(entry => entry.id === target.dataset.memberEdit); if (item) setForm(item); } if (target.dataset.memberDelete) { d0174SaveMembers(d0174LoadMembers().filter(entry => entry.id !== target.dataset.memberDelete)); render(); } });
+    form.addEventListener("submit", event => { event.preventDefault(); const next = {}; form.querySelectorAll("[data-member-field]").forEach(field => { next[field.dataset.memberField] = field.value.trim(); }); const members = d0174LoadMembers(); next.id = next.id || `mem-${Date.now()}`; const index = members.findIndex(item => item.id === next.id); if (index >= 0) members[index] = next; else members.push(next); d0174SaveMembers(members); form.hidden = true; render(); });
+    render();
+  }
+
   function mountD0174Meeting() {
     if (!document.body || !document.body.innerText.includes("團隊出勤總覽")) return;
     let root = document.getElementById("d0174-business-meeting");
@@ -238,8 +283,13 @@
   const d0174FixedStyle = document.createElement("style");
   d0174FixedStyle.textContent = `#d0174-business-meeting .d0174FixedCard{width:100%;display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:14px;text-align:left;border:1px solid #e3e7ed;border-radius:15px;background:#fff;padding:16px;margin:12px 0 18px;color:#263248}#d0174-business-meeting .d0174FixedCard:hover{border-color:#c72832;background:#fff7f7}#d0174-business-meeting .d0174FixedCard i{width:36px;height:36px;border-radius:50%;background:#c72832;color:#fff;display:grid;place-items:center;font-style:normal;font-weight:800}#d0174-business-meeting .d0174FixedCard span{display:flex;flex-direction:column;gap:3px}#d0174-business-meeting .d0174FixedCard small{color:#b52f39;font-weight:800}#d0174-business-meeting .d0174FixedCard b{font-size:15px}#d0174-business-meeting .d0174FixedCard em{color:#738095;font-style:normal;font-size:12px}#d0174-business-meeting .d0174FixedCard strong{color:#b52f39;font-size:13px}#d0174-business-meeting .d0174MeetingEditor{border-top:1px solid #ead9db;padding-top:12px;margin-bottom:12px}#d0174-business-meeting .d0174MeetingLabel small{color:#b52f39;letter-spacing:.15em;font-weight:800}#d0174-business-meeting .d0174MeetingLabel h3{margin:4px 0;font-size:20px}#d0174-business-meeting .d0174MeetingLabel p{margin:0;color:#738095;font-size:13px}`;
   document.head.appendChild(d0174FixedStyle);
+  const d0174CustomStyle = document.createElement("style");
+  d0174CustomStyle.textContent = `#d0174-business-meeting .d0174FixedCard{width:100%;display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:14px;text-align:left;border:1px solid #e3e7ed;border-radius:15px;background:#fff;padding:16px;margin:12px 0 18px;color:#263248}#d0174-business-meeting .d0174FixedCard:hover{border-color:#c72832;background:#fff7f7}#d0174-business-meeting .d0174FixedCard i{width:36px;height:36px;border-radius:50%;background:#c72832;color:#fff;display:grid;place-items:center;font-style:normal;font-weight:800}#d0174-business-meeting .d0174FixedCard span{display:flex;flex-direction:column;gap:3px}#d0174-business-meeting .d0174FixedCard small{color:#b52f39;font-weight:800}#d0174-business-meeting .d0174FixedCard b{font-size:15px}#d0174-business-meeting .d0174FixedCard em{color:#738095;font-style:normal;font-size:12px}#d0174-business-meeting .d0174FixedCard strong{color:#b52f39;font-size:13px}.d0174FocusOverview{padding:30px;background:#fff;border-radius:18px;border:1px solid #e4e8ee}.d0174FocusEyebrow,.d0174FocusOverview small{color:#b52f39;letter-spacing:.15em;font-weight:800}.d0174FocusOverview h2{margin:6px 0;font-size:28px}.d0174FocusOverview>p{color:#738095}.d0174FocusGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}.d0174FocusGrid article{border:1px solid #e1e6ed;border-radius:16px;padding:20px;background:#fffafa}.d0174FocusGrid h3{margin:6px 0;font-size:20px}.d0174FocusMetric{font-size:42px;font-weight:850;color:#b52f39}.d0174FocusGrid p{color:#68758a;min-height:25px}.d0174FocusList{display:grid;gap:7px;margin:12px 0}.d0174FocusList div{display:flex;justify-content:space-between;padding:9px 11px;border-radius:9px;background:#fff;border:1px solid #edf0f4}.d0174FocusList span{color:#738095;font-size:12px}.d0174FocusEmpty{color:#99a1ad!important;justify-content:flex-start!important}.d0174FocusGrid button,.d0174DirectoryHeader button,.d0174MemberForm button,.d0174MemberList button{border:1px solid #d99ca2;border-radius:9px;background:#fff;color:#a72430;padding:8px 12px;font-weight:700;cursor:pointer}.d0174FocusGrid button{margin-top:6px}.sidebar nav button[data-d0174-business-nav]{color:#a72430}.d0174DirectoryHeader{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-top:22px;padding:20px;background:#fffafa;border:1px solid #ead9db;border-radius:16px}.d0174DirectoryHeader small{color:#b52f39;letter-spacing:.15em;font-weight:800}.d0174DirectoryHeader h2{margin:5px 0;font-size:20px}.d0174DirectoryHeader p{margin:0;color:#738095;font-size:12px}.d0174MemberForm{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:10px;padding:18px;background:#fff;border:1px solid #e3e7ed;border-radius:14px}.d0174MemberForm label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:#68758a}.d0174MemberForm input,.d0174MemberForm select{border:1px solid #d7dce5;border-radius:9px;padding:9px;font:inherit}.d0174MemberFormActions{grid-column:1/-1;display:flex;gap:8px}.d0174MemberList{margin-top:10px;background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:15px}.d0174MemberList table{width:100%;border-collapse:collapse;font-size:12px}.d0174MemberList th,.d0174MemberList td{text-align:left;border-bottom:1px solid #edf0f4;padding:10px}.d0174DirectoryEmpty{color:#8994a6;padding:15px}.d0174MemberList button{margin-right:6px;padding:5px 9px;font-size:11px}@media(max-width:900px){.d0174FocusGrid,.d0174MemberForm{grid-template-columns:1fr}.d0174MemberFormActions{grid-column:auto}}`;
+  document.head.appendChild(d0174CustomStyle);
   mount();
+  mountD0174Nav();
   mountD0174Overview();
+  mountD0174Directory();
   mountD0174Meeting();
-  window.setInterval(() => { mount(); mountD0174Overview(); mountD0174Meeting(); }, 1200);
+  window.setInterval(() => { mount(); mountD0174Nav(); mountD0174Overview(); mountD0174Directory(); mountD0174Meeting(); }, 1200);
 })();
