@@ -242,7 +242,9 @@
   }
 
   function mountD0174Directory() {
-    if (!document.body || !document.body.innerText.includes("分區團隊通訊錄") || document.getElementById("d0174-manual-directory")) return;
+    const isDirectory = Array.from(document.querySelectorAll("h2")).some(node => (node.textContent || "").includes("分區團隊通訊錄"));
+    if (!isDirectory) { document.getElementById("d0174-manual-directory")?.remove(); return; }
+    if (document.getElementById("d0174-manual-directory")) return;
     const page = document.querySelector(".page"); if (!page) return;
     const root = document.createElement("section"); root.id = "d0174-manual-directory";
     root.innerHTML = `<div class="d0174DirectoryHeader"><div><small>D0174 MEMBER ENTRY</small><h2>D0174 人員填寫入口</h2><p>新增或修改 D0174 團隊名單；保存後可供團隊檔案與出勤模組使用。</p></div><button type="button" data-member-action="new">＋ 新增人員</button></div><form class="d0174MemberForm" hidden><input type="hidden" data-member-field="id"><label>姓名<input required data-member-field="name" placeholder="例如：陳大文"></label><label>Agent Code<input data-member-field="code" placeholder="D0174-0001"></label><label>職級／角色<input data-member-field="role" placeholder="例如：FC"></label><label>類別<input data-member-field="category" placeholder="例如：FT／LA"></label><label>直接上線<input data-member-field="manager"></label><label>所屬管理組<input data-member-field="group"></label><label>狀態<select data-member-field="status"><option value="active">在職</option><option value="new">入職中</option><option value="inactive">離職</option></select></label><div class="d0174MemberFormActions"><button type="submit">保存人員</button><button type="button" data-member-action="cancel">取消</button></div></form><div class="d0174MemberList"></div>`;
@@ -256,7 +258,7 @@
   }
 
   function mountD0174Meeting() {
-    if (!document.body || !document.body.innerText.includes("團隊出勤總覽")) return;
+    if (!document.body || !document.body.innerText.includes("團隊出勤總覽")) { document.getElementById("d0174-business-meeting")?.remove(); return; }
     let root = document.getElementById("d0174-business-meeting");
     if (!root) {
       root = document.createElement("section"); root.id = "d0174-business-meeting";
